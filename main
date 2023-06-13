@@ -1,0 +1,149 @@
+import sys
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QFileDialog, QProgressBar, QComboBox, QLineEdit, QMessageBox
+import openai
+import os
+
+class MainWindow(QWidget):
+  openai.api_key = "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"
+
+  def __init__(self):
+    super().__init__()
+    self.initUI()
+
+  def initUI(self):
+    # Create the window
+    self.setGeometry(800, 500, 400, 100)
+    self.setWindowTitle('Generator')
+
+    #create a label to print in the window what action to do
+    self.label = QLabel(self)
+    self.label.move(20, 60)
+    self.label.setText("Choice the auto-generation text file")
+
+    # Create a button to open the file explorer window
+    self.button = QPushButton('...', self)
+    self.button.clicked.connect(self.exec_functions)
+    self.button.move(300, 55)
+
+    self.language_menu = QComboBox(self)
+    self.language_menu.addItems(['Python','C','C++','C#','Q#','Java','Javascript','HTML/CSS','Matlab'])
+    self.language_menu.move(20,20)
+
+    self.token_edit = QLineEdit(self)
+    self.token_edit.setText('250')
+    self.token_edit.setGeometry(323,20,50,20)
+
+    self.token_label = QLabel(self)
+    self.token_label.setText('Tokens by response :')
+    self.token_label.move(160,20)
+
+    self.show()
+
+  def add_buttons(self,name='open file'):
+    self.namefile = QLineEdit(self)
+    self.namefile.setGeometry(20,95,170,20)
+    self.namefile.setText(name)
+
+    self.show_txt = QPushButton('open file', self)
+    self.show_txt.clicked.connect(lambda: self.open_program_file(name))
+    self.show_txt.move(300, 95)
+
+    #self.close_btn = QPushButton('close', self)
+    #self.close_btn.clicked.connect(self.close())
+    #self.close_btn.move(200, 55)
+
+    self.exec_btn = QPushButton('Exec', self)
+    self.exec_btn.clicked.connect(lambda: self.exec_file(name))
+    self.exec_btn.move(210, 95)
+
+    self.namefile.show()
+    self.show_txt.show()
+    #self.close_btn.show()
+    self.exec_btn.show()
+
+  def open_program_file(self,file_path):
+    try:
+      os.system(f'start {file_path}')
+    except Exception as e:
+      msg_box = QMessageBox()
+      text = 'Error : ' + str(e)
+      msg_box.setText(text)
+      msg_box.setIcon(QMessageBox.Critical)
+      msg_box.exec_()
+
+
+
+  def exec_file(self, file_path):
+    with open(file_path, 'r') as f:
+      script = f.read()
+    try:
+      exec(script)
+    except Exception as e:
+      msg_box = QMessageBox()
+      text = 'Error : ' + str(e)
+      msg_box.setText(text)
+      msg_box.setIcon(QMessageBox.Critical)
+      msg_box.exec_()
+
+
+  def open_text_file(self):
+    # Open the file explorer window
+    file_path, _ = QFileDialog.getOpenFileName()
+    # Open the selected file in read mode
+    with open(file_path, 'r') as file:
+      # Read the contents of the file
+      contents = file.read()
+      instructions = contents.split(';\n')
+      # return the instructions to the other function
+      return instructions
+
+  def get_response(self,instruction, resp_before):
+    language = self.language_menu.currentText()
+    prompt = "Use the "+ str(language)+ " code below " + str(resp_before) + "\nand code the instruction below : " + str(instruction)
+    #stop = ""
+    max_tokens = int(self.token_edit.text())
+
+    try :
+      response = openai.Completion.create(engine="text-davinci-002", prompt=prompt, max_tokens=max_tokens, temperature=0.5)
+      return response["choices"][0]["text"]
+
+    except Exception as e:
+      msg_box = QMessageBox()
+      text = 'Error : ' + str(e)
+      msg_box.setText(text)
+      msg_box.setIcon(QMessageBox.Critical)
+      msg_box.exec_()
+
+  def save_program_file(self, content):
+    file_path, _ = QFileDialog.getSaveFileName()
+    with open(file_path, 'w') as main_file:
+      print(content, file=main_file)
+    self.add_buttons(name=str(file_path))
+
+  def exec_functions(self):
+    index = 1
+    response = ""
+    instructions = self.open_text_file()
+
+    self.resize(400, 130)
+    self.progress_bar = QProgressBar(self)
+    self.progress_bar.setGeometry(20, 100, 370, 20)
+    self.progress_bar.setValue(0)
+    self.progress_bar.show()
+    self.progress_bar.setMaximum(len(instructions))
+
+    for instruction in instructions:
+      if len(response) < 4025:
+        response += str(self.get_response(instruction, response))
+      if len(response) >= 4025:
+        response += str(self.get_response(instruction, response[len(response)-4025:]))
+      self.progress_bar.setValue(index)
+      index += 1
+    self.progress_bar.deleteLater()
+    self.save_program_file(response)
+
+
+if __name__ == '__main__':
+  app = QApplication(sys.argv)
+  window = MainWindow()
+  sys.exit(app.exec_())
